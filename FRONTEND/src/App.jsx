@@ -1,505 +1,774 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
+import { 
+  MessageSquare, Car, AlertTriangle, Calendar, Wrench, TrendingUp, 
+  Activity, CheckCircle, Phone, MapPin, Settings, Bell, BarChart3,
+  Clock, Users, ThumbsUp, Shield, Zap, Factory
+} from 'lucide-react';
 
-// --- Environment Variables (MANDATORY FOR FIREBASE READY APPS) ---
-// Note: These are placeholders provided by the execution environment. 
-// Replace with actual values/logic in a real GitHub deployment.
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
-const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+const API_BASE_URL = 'http://localhost:5000';
 
-// --- Mock Data & Icons ---
-// Custom SVG Icon component (as external libraries like lucide-react are not supported in single-file mode)
-const Icon = ({ name, className = 'w-6 h-6' }) => (
-  <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    {name === 'Gauge' && <path d="M12 19.5c-.773 0-1.5-.04-2.22-.11C6.918 19.165 4 17.062 4 13.5 4 8.272 7.582 4 12 4s8 4.272 8 9.5c0 3.562-2.918 5.665-5.78 5.89-1.3.1-2.6.11-3.22.11zM12 14V8M15 15l-3-3" />}
-    {name === 'Bell' && <path d="M18.8 1.8A.6.6 0 0 1 19 2v.2a.6.6 0 0 0 .2.2c.2.2.2.6 0 .8l-2 2a.6.6 0 0 1-.8 0l-1.2-1.2a.6.6 0 0 0-.8 0l-2 2a.6.6 0 0 1-.8 0l-1.2-1.2a.6.6 0 0 0-.8 0l-2 2a.6.6 0 0 1-.8 0l-1.2-1.2a.6.6 0 0 0-.8 0l-2 2a.6.6 0 0 1-.8 0l-2-2a.6.6 0 0 0-.8 0L3 5.2a.6.6 0 1 1-.8-.8l2-2a.6.6 0 0 1 .8 0L6.2 3a.6.6 0 0 0 .8 0l2-2a.6.6 0 0 1 .8 0l1.2 1.2a.6.6 0 0 0 .8 0l2-2a.6.6 0 0 1 .8 0l1.2 1.2a.6.6 0 0 0 .8 0l2-2a.6.6 0 0 1 .8 0z" />}
-    {name === 'Calendar' && (
-      <>
-        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-        <line x1="16" y1="2" x2="16" y2="6"/>
-        <line x1="8" y1="2" x2="8" y2="6"/>
-        <line x1="3" y1="10" x2="21" y2="10"/>
-      </>
-    )}
-    {name === 'Factory' && <path d="M2 20h20v-2H2v2zm5.5-12h9v10h-9V8zm0-4h9v2h-9V4zM2 8h3v10H2V8zm17 0h3v10h-3V8z" />}
-    {name === 'MessageSquare' && <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />}
-    {name === 'CheckCircle' && (
-      <>
-        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-        <polyline points="22 4 12 14.01 9 11.01"/>
-      </>
-    )}
-    {name === 'Wrench' && <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-3.37 3.37a1.06 1.06 0 0 1-1.4 0l-2-2a1.06 1.06 0 0 1 0-1.4l3.37-3.37a6 6 0 0 1 7.94-7.94l-3.77 3.77Z"/>}
-    {name === 'Activity' && <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>}
-    {name === 'Users' && (
-      <>
-        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
-        <circle cx="9" cy="7" r="4"/>
-        <path d="M22 21v-2a4 4 0 0 0-3-3.87"/>
-        <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-      </>
-    )}
-    {name === 'Target' && (
-      <>
-        <circle cx="12" cy="12" r="10"/>
-        <circle cx="12" cy="12" r="6"/>
-        <circle cx="12" cy="12" r="2"/>
-      </>
-    )}
-    {name === 'Car' && (
-      // Simple car profile view SVG
-      <>
-        <path d="M19 17H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2z"/>
-        <circle cx="7.5" cy="15.5" r="1.5"/>
-        <circle cx="16.5" cy="15.5" r="1.5"/>
-        <path d="M5 9h14v2H5z"/>
-      </>
-    )}
-  </svg>
-);
+// API Functions
+const api = {
+  getVehicleHealth: async (vehicleId) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/vehicle/${vehicleId}/health`);
+      return await response.json();
+    } catch (error) {
+      console.error('API Error:', error);
+      return null;
+    }
+  },
 
-const MOCK_VEHICLE_DATA = {
-  make: 'Hero',
-  model: 'Optima-E',
-  vin: 'VIN-5829-EPR',
-  healthScore: 88,
-  breakdownRisk: 'Low (4%)',
-  nextServiceMiles: 1500,
-  mileage: 18450,
-  alerts: [
-    { component: 'Brake Pad Wear (Front)', severity: 'High', details: 'Predicted failure in ~45 days (85% confidence)', icon: 'Bell' },
-    { component: 'Battery Cell Imbalance', severity: 'Medium', details: 'Minor voltage fluctuation detected in Cell 5', icon: 'Activity' },
-  ],
+  sendMessage: async (message, vehicleId) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message, vehicleId }),
+      });
+      return await response.json();
+    } catch (error) {
+      console.error('API Error:', error);
+      throw error;
+    }
+  },
+
+  scheduleService: async (data) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/service/schedule`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      return await response.json();
+    } catch (error) {
+      console.error('API Error:', error);
+      throw error;
+    }
+  },
+
+  getManufacturingInsights: async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/manufacturing/insights`);
+      return await response.json();
+    } catch (error) {
+      console.error('API Error:', error);
+      return null;
+    }
+  }
 };
 
-const MOCK_MANUFACTURING_DATA = [
-  { part: 'Brake Pad Assembly', rca: 'Vendor material inconsistency (Batch 4)', capa: 'Switched to Vendor B + mandatory quarterly sample tests', failure_rate_reduction: '15%' },
-  { part: 'Headlight LED Driver', rca: 'Overheating due to compact housing', capa: 'Redesigned heat sink and added thermal throttle logic', failure_rate_reduction: '22%' },
-];
-
-
-// --- Helper Components ---
-
-/** Card component for displaying key metrics with animation. */
-const MetricCard = ({ title, value, unit, colorClass, iconName }) => (
-  <div className="bg-gray-800 p-6 rounded-xl shadow-xl border border-gray-700 transition duration-300 hover:shadow-2xl hover:scale-[1.03] transform">
-    <div className="flex items-center justify-between">
-      <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">{title}</h3>
-      <Icon name={iconName} className={`w-6 h-6 ${colorClass}`} />
-    </div>
-    <p className="mt-2 text-4xl font-extrabold text-white leading-none">
-      {value}
-      <span className="text-xl font-medium text-gray-400 ml-1">{unit}</span>
-    </p>
-  </div>
-);
-
-/** Navigation Link with animation. */
-const NavItem = ({ view, currentView, setView, iconName }) => (
-  <button
-    onClick={() => setView(view)}
-    className={`flex items-center space-x-3 p-3 rounded-xl transition duration-300 w-full text-left font-medium
-      ${currentView === view
-        ? 'bg-violet-600 text-white shadow-lg shadow-violet-500/50'
-        : 'text-gray-300 hover:bg-gray-700 hover:text-violet-400 hover:translate-x-1'
-      } transform ease-out`}
-  >
-    <Icon name={iconName} className="w-5 h-5" />
-    <span>{view}</span>
-  </button>
-);
-
-/** Wrapper for view content to apply a fade-in animation on navigation. */
-const AnimatedView = ({ children, viewKey }) => (
-  // Use key prop to force re-mounting and trigger the CSS animation
-  <div key={viewKey} className="animate-fade-slide-in">
-    {children}
-  </div>
-);
-
-
-// --- Main Views (Slide 9 Content) ---
-
-/** 1. Vehicle Health Dashboard */
-const DashboardView = () => (
-  <div className="space-y-8 p-4 md:p-8">
-    <h1 className="text-3xl font-bold text-white animate-slide-in-down">Vehicle Health Dashboard</h1>
-
-    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-      <MetricCard
-        title="Predictive Health Score"
-        value={MOCK_VEHICLE_DATA.healthScore}
-        unit="%"
-        colorClass="text-green-400"
-        iconName="Target"
-      />
-      <MetricCard
-        title="Breakdown Risk (30-day)"
-        value={MOCK_VEHICLE_DATA.breakdownRisk.split(' ')[0]}
-        unit={MOCK_VEHICLE_DATA.breakdownRisk.split(' ')[1]}
-        colorClass="text-yellow-400"
-        iconName="Activity"
-      />
-      <MetricCard
-        title="Next Service Due"
-        value={MOCK_VEHICLE_DATA.nextServiceMiles}
-        unit="miles"
-        colorClass="text-blue-400"
-        iconName="Calendar"
-      />
-      <MetricCard
-        title="Total Mileage"
-        value={MOCK_VEHICLE_DATA.mileage.toLocaleString()}
-        unit="mi"
-        colorClass="text-gray-400"
-        iconName="Gauge"
-      />
-    </div>
-
-    <h2 className="text-2xl font-semibold text-gray-300 pt-4">Vehicle Details</h2>
-    <div className="bg-gray-800 p-6 rounded-xl shadow border border-gray-700 hover:shadow-md transition duration-200 text-gray-300">
-      <p><strong>Make:</strong> {MOCK_VEHICLE_DATA.make}</p>
-      <p><strong>Model:</strong> {MOCK_VEHICLE_DATA.model}</p>
-      <p><strong>VIN:</strong> {MOCK_VEHICLE_DATA.vin}</p>
-    </div>
-  </div>
-);
-
-/** 2. Alert & Recommendation Screen */
-const AlertRecommendationView = ({ setView }) => (
-  <div className="space-y-8 p-4 md:p-8">
-    <h1 className="text-3xl font-bold text-white animate-slide-in-down">Predictive Alerts & Service Recommendation</h1>
-
-    {/* Custom Pulse Animation for Critical Alert */}
-    <div className="bg-red-900/40 border-l-4 border-red-500 p-6 rounded-lg shadow-md animate-alert-pulse">
-      <div className="flex items-center space-x-3">
-        <Icon name="Bell" className="w-8 h-8 text-red-500 animate-shake" />
-        <h2 className="text-xl font-bold text-red-400">CRITICAL PREDICTIVE ALERT</h2>
-      </div>
-      <p className="mt-3 text-red-300">
-        The **AI Diagnosis Worker Agent** has detected a high risk of failure for **{MOCK_VEHICLE_DATA.alerts[0].component}** within the next 45 days.
-        This is based on continuous sensor data analysis (RPM variance, temperature spikes).
-      </p>
-    </div>
-
-    {/* Service Recommendation */}
-    <div className="bg-gray-800 p-8 rounded-xl shadow-lg border border-violet-700 space-y-4 hover:shadow-xl transition duration-300">
-      <div className="flex items-center space-x-3">
-        <Icon name="Wrench" className="w-7 h-7 text-violet-400" />
-        <h2 className="text-2xl font-semibold text-violet-400">AI-Generated Service Recommendation</h2>
-      </div>
-      <p className="text-gray-300">
-        To proactively prevent a breakdown and ensure safety, the **Master Agent** recommends scheduling a 'Brake System Inspection and Replacement' service immediately.
-      </p>
-      <ul className="list-disc pl-5 text-gray-400 space-y-1">
-        <li>**Recommended Service Center:** 'Pro-Auto Service Center' (Nearest and authorized for {MOCK_VEHICLE_DATA.make}).</li>
-        <li>**Estimated Time:** 1.5 hours.</li>
-        <li>**Cost Estimate:** ₹4,500 - ₹5,500.</li>
-      </ul>
-      <button
-        onClick={() => setView('Scheduling')}
-        className="mt-6 w-full md:w-auto bg-violet-600 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:bg-violet-700 transition duration-300 transform hover:scale-[1.03] active:scale-[0.98]"
-      >
-        <Icon name="Calendar" className="w-5 h-5 inline mr-2" />
-        Book Recommended Service Now
-      </button>
-    </div>
-  </div>
-);
-
-/** 3. Scheduling Screen */
-const SchedulingView = () => {
-  const [selectedDate, setSelectedDate] = useState('2025-12-28');
-  const [selectedSlot, setSelectedSlot] = useState('10:00 AM');
-  const [isScheduled, setIsScheduled] = useState(false);
-
-  const availableSlots = ['9:00 AM', '10:00 AM', '11:00 AM', '2:00 PM', '3:00 PM'];
-
-  const handleBook = () => {
-    // Simulate Service Scheduler API call
-    setTimeout(() => {
-      setIsScheduled(true);
-    }, 500);
-  };
+// Sidebar Component
+const Sidebar = ({ activeTab, setActiveTab }) => {
+  const tabs = [
+    { id: 'dashboard', label: 'Vehicle Health', icon: Car },
+    { id: 'alerts', label: 'Predictive Alerts', icon: AlertTriangle },
+    { id: 'scheduling', label: 'Service Scheduling', icon: Calendar },
+    { id: 'voice', label: 'Voice Assistant', icon: Phone },
+    { id: 'manufacturing', label: 'Manufacturing Insights', icon: Factory },
+    { id: 'analytics', label: 'Analytics & Reports', icon: BarChart3 },
+  ];
 
   return (
-    <div className="space-y-8 p-4 md:p-8">
-      <h1 className="text-3xl font-bold text-white animate-slide-in-down">Proactive Service Scheduling</h1>
-
-      <div className="bg-gray-800 p-8 rounded-xl shadow-lg border border-gray-700">
-        {isScheduled ? (
-          <div className="text-center py-10 animate-fade-slide-in">
-            <Icon name="CheckCircle" className="w-20 h-20 text-green-500 mx-auto animate-bounce-once" />
-            <h2 className="text-3xl font-bold mt-4 text-green-400">Booking Confirmed!</h2>
-            <p className="mt-2 text-lg text-gray-300">
-              Your service is booked for **{selectedDate}** at **{selectedSlot}**.
-            </p>
-            <p className="mt-4 text-sm text-gray-500">
-              The **Engagement Agent** will send an SMS reminder 24 hours prior.
-            </p>
+    <div className="w-64 bg-gray-950 border-r border-gray-800 flex flex-col">
+      <div className="p-6">
+        <div className="flex items-center space-x-3">
+          <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-cyan-600 rounded-lg flex items-center justify-center">
+            <Car className="w-6 h-6 text-white" />
           </div>
-        ) : (
-          <div className="space-y-6">
-            <h2 className="text-2xl font-semibold text-gray-300">1. Select Date & Time</h2>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Date Selection */}
-              <div className="space-y-3">
-                <label htmlFor="date" className="block text-sm font-medium text-gray-400">
-                  Preferred Date (Recommending next 7 days)
-                </label>
-                <input
-                  type="date"
-                  id="date"
-                  value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                  className="w-full p-3 border border-gray-600 bg-gray-700 text-white rounded-lg focus:ring-violet-500 focus:border-violet-500 transition duration-150"
-                />
-              </div>
+          <div>
+            <h1 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
+              AutoServe AI
+            </h1>
+            <p className="text-xs text-gray-500">Predictive Maintenance</p>
+          </div>
+        </div>
+      </div>
 
-              {/* Slot Selection */}
-              <div className="space-y-3">
-                <label className="block text-sm font-medium text-gray-400">
-                  Available Slots (Service Center Capacity Optimized)
-                </label>
-                <div className="flex flex-wrap gap-3">
-                  {availableSlots.map((slot) => (
-                    <button
-                      key={slot}
-                      onClick={() => setSelectedSlot(slot)}
-                      className={`p-3 rounded-full text-sm font-medium transition duration-200 transform
-                        ${selectedSlot === slot
-                          ? 'bg-violet-600 text-white shadow-lg hover:scale-105'
-                          : 'bg-gray-700 text-gray-300 hover:bg-violet-800 hover:text-white'
-                        }`}
-                    >
-                      {slot}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <h2 className="text-2xl font-semibold text-gray-300 pt-4">2. Confirm Details</h2>
-            <p className="text-lg font-medium text-gray-300">
-              Service: Brake System Proactive Maintenance ({MOCK_VEHICLE_DATA.alerts[0].component})
-            </p>
-
+      <nav className="flex-1 px-4 space-y-2">
+        {tabs.map((tab) => {
+          const Icon = tab.icon;
+          return (
             <button
-              onClick={handleBook}
-              disabled={!selectedDate || !selectedSlot}
-              className="w-full bg-green-600 text-white font-semibold py-3 px-6 rounded-lg shadow-lg hover:bg-green-700 transition duration-300 transform hover:scale-[1.01] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-all ${
+                activeTab === tab.id
+                  ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white'
+                  : 'text-gray-400 hover:bg-gray-800 hover:text-white'
+              }`}
             >
-              Confirm Booking for {selectedSlot} on {selectedDate}
+              <Icon className="w-5 h-5" />
+              <span className="font-medium text-sm">{tab.label}</span>
             </button>
+          );
+        })}
+      </nav>
+
+      <div className="p-4 border-t border-gray-800">
+        <div className="bg-gray-800 rounded-lg p-4">
+          <div className="flex items-center space-x-3 mb-3">
+            <Shield className="w-5 h-5 text-green-500" />
+            <div className="flex-1">
+              <p className="text-xs text-gray-400">UEBA Security</p>
+              <p className="text-sm font-medium text-white">Active</p>
+            </div>
           </div>
-        )}
+          <div className="text-xs text-gray-500">
+            All agent activities monitored
+          </div>
+        </div>
       </div>
     </div>
   );
 };
 
-/** 4. Manufacturing Insights Summary */
-const ManufacturingInsightsView = () => (
-  <div className="space-y-8 p-4 md:p-8">
-    <h1 className="text-3xl font-bold text-white animate-slide-in-down">Manufacturing Feedback Loop Insights</h1>
-    <p className="text-gray-400">
-      The **Manufacturing Insights Worker Agent** aggregates RCA/CAPA data from service tickets
-      to provide actionable intelligence to the production line, closing the feedback loop.
-    </p>
+// Vehicle Health Dashboard
+const VehicleDashboard = () => {
+  const [vehicleData, setVehicleData] = useState({
+    id: 'HERO-2024-001',
+    model: 'Hero Splendor Plus',
+    health: 78,
+    mileage: 12450,
+    lastService: '45 days ago',
+    predictedFailure: 'Medium Risk'
+  });
 
-    <div className="bg-gray-800 p-6 rounded-xl shadow-lg overflow-x-auto">
-      <table className="min-w-full divide-y divide-gray-700">
-        <thead className="bg-gray-700">
-          <tr>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-              Failed Component
-            </th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-              Root Cause Analysis (RCA)
-            </th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-              Corrective Action Plan (CAPA)
-            </th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-              Failure Rate Reduction
-            </th>
-          </tr>
-        </thead>
-        <tbody className="bg-gray-800 divide-y divide-gray-700">
-          {MOCK_MANUFACTURING_DATA.map((item, index) => (
-            <tr key={index} className="hover:bg-gray-700 transition duration-150">
-              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">
-                {item.part}
-              </td>
-              <td className="px-6 py-4 text-sm text-gray-400 max-w-xs">{item.rca}</td>
-              <td className="px-6 py-4 text-sm text-gray-400 max-w-xs">{item.capa}</td>
-              <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-green-400">
-                {item.failure_rate_reduction}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-
-    <div className="flex justify-start">
-        <div className="bg-violet-900/40 border-l-4 border-violet-500 p-4 rounded-lg shadow-md hover:shadow-lg transition duration-300">
-            <div className="flex items-center space-x-2">
-                <Icon name="Users" className="w-5 h-5 text-violet-400" />
-                <p className="text-sm font-medium text-violet-300">
-                    **UEBA Insight:** Monitoring shows no abnormal data extraction patterns by the Manufacturing Insights Agent.
-                </p>
-            </div>
-        </div>
-    </div>
-  </div>
-);
-
-/** Main Application Component */
-const App = () => {
-  const [currentView, setCurrentView] = useState('Dashboard');
-
-  // Placeholder for Firebase/Auth Initialization (MANDATORY STRUCTURE)
-  useEffect(() => {
-    const mockAuthCheck = async () => {
-      // Mocking successful auth state
-      console.log(`App ID: ${appId} - Auth Ready.`);
-    };
-
-    mockAuthCheck();
-  }, []);
-
-  // Render the current view based on state
-  const renderView = useCallback(() => {
-    switch (currentView) {
-      case 'Dashboard':
-        return <DashboardView />;
-      case 'Alerts & Recommendations':
-        return <AlertRecommendationView setView={setCurrentView} />;
-      case 'Scheduling':
-        return <SchedulingView />;
-      case 'Manufacturing Insights':
-        return <ManufacturingInsightsView />;
-      default:
-        return <DashboardView />;
-    }
-  }, [currentView]);
+  const healthMetrics = [
+    { label: 'Engine Health', value: 85, status: 'good', icon: Wrench },
+    { label: 'Brake System', value: 65, status: 'warning', icon: AlertTriangle },
+    { label: 'Transmission', value: 90, status: 'good', icon: Activity },
+    { label: 'Electrical', value: 72, status: 'warning', icon: Zap },
+  ];
 
   return (
-    <div className="min-h-screen bg-gray-900 font-sans antialiased">
-      {/* Tailwind CSS Script (MANDATORY) - Not needed in a real React project using a build step */}
-      <script src="https://cdn.tailwindcss.com"></script>
+    <div className="p-6 space-y-6 overflow-y-auto h-full">
+      {/* Vehicle Info Card */}
+      <div className="bg-gradient-to-br from-blue-600 to-cyan-600 rounded-xl p-6 text-white">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold mb-2">{vehicleData.model}</h2>
+            <p className="text-blue-100 mb-1">VIN: {vehicleData.id}</p>
+            <p className="text-sm text-blue-100">Odometer: {vehicleData.mileage.toLocaleString()} km</p>
+          </div>
+          <div className="text-center">
+            <div className="w-24 h-24 rounded-full bg-white/20 flex items-center justify-center mb-2">
+              <div className="text-3xl font-bold">{vehicleData.health}%</div>
+            </div>
+            <p className="text-sm text-blue-100">Overall Health</p>
+          </div>
+        </div>
+      </div>
 
-      {/* Custom CSS for Animations (Needed for "crazy good" effects) */}
-      <style>
-        {`
-        /* Critical Alert Pulse */
-        @keyframes alert-pulse {
-          0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); } /* Red-500 */
-          50% { box-shadow: 0 0 0 12px rgba(239, 68, 68, 0); }
-        }
-        .animate-alert-pulse {
-          animation: alert-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-        }
+      {/* Health Metrics Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {healthMetrics.map((metric, idx) => {
+          const Icon = metric.icon;
+          const statusColor = metric.status === 'good' ? 'text-green-500' : 'text-yellow-500';
+          return (
+            <div key={idx} className="bg-gray-800 border border-gray-700 rounded-xl p-5 hover:border-blue-500 transition-all">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center space-x-3">
+                  <div className="p-2 bg-gray-700 rounded-lg">
+                    <Icon className={`w-5 h-5 ${statusColor}`} />
+                  </div>
+                  <span className="font-medium text-white">{metric.label}</span>
+                </div>
+                <span className={`text-2xl font-bold ${statusColor}`}>{metric.value}%</span>
+              </div>
+              <div className="w-full bg-gray-700 rounded-full h-2">
+                <div 
+                  className={`h-2 rounded-full ${metric.status === 'good' ? 'bg-green-500' : 'bg-yellow-500'}`}
+                  style={{ width: `${metric.value}%` }}
+                ></div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
 
-        /* View Content Fade/Slide In */
-        @keyframes fade-slide-in {
-          0% { opacity: 0; transform: translateY(10px); }
-          100% { opacity: 1; transform: translateY(0); }
-        }
-        .animate-fade-slide-in {
-          animation: fade-slide-in 0.5s ease-out forwards;
-        }
+      {/* Recent Telemetry */}
+      <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
+        <h3 className="text-xl font-bold text-white mb-4 flex items-center space-x-2">
+          <Activity className="w-5 h-5 text-blue-500" />
+          <span>Real-Time Telemetry Data</span>
+        </h3>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[
+            { label: 'Engine Temp', value: '89°C', normal: true },
+            { label: 'Oil Pressure', value: '42 PSI', normal: true },
+            { label: 'Battery', value: '12.4V', normal: false },
+            { label: 'Fuel Level', value: '65%', normal: true },
+          ].map((item, idx) => (
+            <div key={idx} className="text-center">
+              <p className="text-sm text-gray-400 mb-1">{item.label}</p>
+              <p className={`text-xl font-bold ${item.normal ? 'text-green-400' : 'text-yellow-400'}`}>
+                {item.value}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
 
-        /* Title Slide Down */
-        @keyframes slide-in-down {
-          0% { opacity: 0; transform: translateY(-20px); }
-          100% { opacity: 1; transform: translateY(0); }
-        }
-        .animate-slide-in-down {
-            animation: slide-in-down 0.4s ease-out forwards;
-        }
+// Predictive Alerts
+const PredictiveAlerts = () => {
+  const alerts = [
+    {
+      id: 1,
+      severity: 'high',
+      component: 'Brake Pads',
+      prediction: 'Replacement needed in ~250 km',
+      confidence: 94,
+      recommendation: 'Schedule service within 7 days',
+      icon: AlertTriangle
+    },
+    {
+      id: 2,
+      severity: 'medium',
+      component: 'Battery',
+      prediction: 'Degradation detected, 30 days remaining',
+      confidence: 87,
+      recommendation: 'Monitor and replace soon',
+      icon: Zap
+    },
+    {
+      id: 3,
+      severity: 'low',
+      component: 'Air Filter',
+      prediction: 'Cleaning recommended',
+      confidence: 76,
+      recommendation: 'Next scheduled service',
+      icon: Activity
+    },
+  ];
+
+  return (
+    <div className="p-6 space-y-6 overflow-y-auto h-full">
+      <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
+        <h3 className="text-xl font-bold text-white mb-2">Predictive Maintenance Alerts</h3>
+        <p className="text-sm text-gray-400 mb-4">AI-powered predictions based on vehicle telemetry and historical data</p>
         
-        /* Bounce once for confirmation checkmark */
-        @keyframes bounce-once {
-            0%, 20%, 50%, 80%, 100% {
-                transform: translateY(0);
-            }
-            40% {
-                transform: translateY(-30px);
-            }
-            60% {
-                transform: translateY(-15px);
-            }
-        }
-        .animate-bounce-once {
-            animation: bounce-once 1s ease-in-out 1;
-        }
-        
-        /* Subtle Shake for Bell icon */
-        @keyframes shake {
-            0%, 100% { transform: rotate(0deg); }
-            10%, 30%, 50%, 70%, 90% { transform: rotate(5deg); }
-            20%, 40%, 60%, 80% { transform: rotate(-5deg); }
-        }
-        .animate-shake {
-            animation: shake 0.5s ease-in-out infinite;
-        }
-        `}
-      </style>
+        <div className="space-y-4">
+          {alerts.map((alert) => {
+            const Icon = alert.icon;
+            const severityColors = {
+              high: 'border-red-500 bg-red-500/10',
+              medium: 'border-yellow-500 bg-yellow-500/10',
+              low: 'border-blue-500 bg-blue-500/10'
+            };
+            const severityText = {
+              high: 'text-red-400',
+              medium: 'text-yellow-400',
+              low: 'text-blue-400'
+            };
+            
+            return (
+              <div key={alert.id} className={`border-l-4 ${severityColors[alert.severity]} p-4 rounded-r-lg`}>
+                <div className="flex items-start justify-between">
+                  <div className="flex items-start space-x-3 flex-1">
+                    <Icon className={`w-6 h-6 ${severityText[alert.severity]} mt-1`} />
+                    <div className="flex-1">
+                      <h4 className="font-semibold text-white mb-1">{alert.component}</h4>
+                      <p className="text-sm text-gray-300 mb-2">{alert.prediction}</p>
+                      <p className="text-xs text-gray-400 mb-2">
+                        <span className="font-medium">Recommendation:</span> {alert.recommendation}
+                      </p>
+                      <div className="flex items-center space-x-2">
+                        <span className="text-xs text-gray-500">Confidence:</span>
+                        <div className="flex-1 max-w-xs bg-gray-700 rounded-full h-2">
+                          <div 
+                            className={`h-2 rounded-full ${alert.severity === 'high' ? 'bg-red-500' : alert.severity === 'medium' ? 'bg-yellow-500' : 'bg-blue-500'}`}
+                            style={{ width: `${alert.confidence}%` }}
+                          ></div>
+                        </div>
+                        <span className="text-xs font-medium text-white">{alert.confidence}%</span>
+                      </div>
+                    </div>
+                  </div>
+                  <button className="ml-4 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm transition-colors">
+                    Schedule Service
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
 
-      {/* Main Layout */}
-      <div className="flex flex-col md:flex-row max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        
-        {/* Sidebar Navigation (Always Visible) */}
-        <aside className="w-full md:w-64 p-4 md:p-0 md:pr-6 md:sticky top-6 self-start">
-          <div className="bg-gray-800 p-6 rounded-xl shadow-2xl shadow-violet-900/50 space-y-2">
-            <h2 className="text-xl font-bold text-violet-400 mb-4 animate-slide-in-down flex items-center space-x-2">
-                <Icon name="Car" className="w-6 h-6 text-violet-500 animate-pulse" />
-                <span>AutoAI Platform</span>
-            </h2>
-            <NavItem
-              view="Dashboard"
-              currentView={currentView}
-              setView={setCurrentView}
-              iconName="Gauge"
-            />
-            <NavItem
-              view="Alerts & Recommendations"
-              currentView={currentView}
-              setView={setCurrentView}
-              iconName="Bell"
-            />
-            <NavItem
-              view="Scheduling"
-              currentView={currentView}
-              setView={setCurrentView}
-              iconName="Calendar"
-            />
-            <NavItem
-              view="Manufacturing Insights"
-              currentView={currentView}
-              setView={setCurrentView}
-              iconName="Factory"
-            />
+      {/* Prediction Model Info */}
+      <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
+        <h3 className="text-lg font-bold text-white mb-4">AI Prediction Model</h3>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <p className="text-sm text-gray-400 mb-1">Model Type</p>
+            <p className="text-white font-medium">LSTM + Random Forest</p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-400 mb-1">Accuracy</p>
+            <p className="text-green-400 font-medium">94.3%</p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-400 mb-1">Data Points Analyzed</p>
+            <p className="text-white font-medium">2.4M+</p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-400 mb-1">Last Updated</p>
+            <p className="text-white font-medium">2 hours ago</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
-            <div className="pt-4 border-t border-gray-700 mt-4 text-xs text-gray-500">
-                <p>App ID: {appId}</p>
-                <p>Status: Prototype Mode</p>
+// Service Scheduling
+const ServiceScheduling = () => {
+  const [selectedDate, setSelectedDate] = useState('');
+  const [selectedTime, setSelectedTime] = useState('');
+  const [serviceCenter, setServiceCenter] = useState('');
+
+  const availableSlots = [
+    '09:00 AM', '10:30 AM', '12:00 PM', '02:00 PM', '04:00 PM'
+  ];
+
+  const serviceCenters = [
+    { id: 1, name: 'Hero Service Center - MG Road', distance: '2.3 km', capacity: 'Available' },
+    { id: 2, name: 'Hero Service Center - Koramangala', distance: '4.1 km', capacity: 'Limited' },
+    { id: 3, name: 'Hero Service Center - Indiranagar', distance: '5.8 km', capacity: 'Available' },
+  ];
+
+  const handleSchedule = async () => {
+    try {
+      await api.scheduleService({
+        vehicleId: 'HERO-2024-001',
+        date: selectedDate,
+        time: selectedTime,
+        serviceCenter: serviceCenter
+      });
+      alert('Service scheduled successfully!');
+    } catch (error) {
+      alert('Error scheduling service');
+    }
+  };
+
+  return (
+    <div className="p-6 space-y-6 overflow-y-auto h-full">
+      <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
+        <h3 className="text-xl font-bold text-white mb-4 flex items-center space-x-2">
+          <Calendar className="w-6 h-6 text-blue-500" />
+          <span>Schedule Proactive Service</span>
+        </h3>
+
+        <div className="space-y-6">
+          {/* Service Center Selection */}
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-3">Select Service Center</label>
+            <div className="space-y-3">
+              {serviceCenters.map((center) => (
+                <div 
+                  key={center.id}
+                  onClick={() => setServiceCenter(center.name)}
+                  className={`border rounded-lg p-4 cursor-pointer transition-all ${
+                    serviceCenter === center.name 
+                      ? 'border-blue-500 bg-blue-500/10' 
+                      : 'border-gray-700 hover:border-gray-600'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-start space-x-3">
+                      <MapPin className="w-5 h-5 text-blue-400 mt-1" />
+                      <div>
+                        <h4 className="font-semibold text-white">{center.name}</h4>
+                        <p className="text-sm text-gray-400">{center.distance} away</p>
+                      </div>
+                    </div>
+                    <span className={`text-xs px-3 py-1 rounded-full ${
+                      center.capacity === 'Available' 
+                        ? 'bg-green-500/20 text-green-400' 
+                        : 'bg-yellow-500/20 text-yellow-400'
+                    }`}>
+                      {center.capacity}
+                    </span>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
-        </aside>
 
-        {/* Content Area - Wrapped for View Transitions */}
-        <main className="flex-1 bg-gray-800 md:ml-4 rounded-xl shadow-2xl shadow-violet-900/50">
-          <AnimatedView viewKey={currentView}>
-            {renderView()}
-          </AnimatedView>
+          {/* Date Selection */}
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">Select Date</label>
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500"
+            />
+          </div>
+
+          {/* Time Slot Selection */}
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-3">Available Time Slots</label>
+            <div className="grid grid-cols-3 gap-3">
+              {availableSlots.map((slot) => (
+                <button
+                  key={slot}
+                  onClick={() => setSelectedTime(slot)}
+                  className={`py-3 rounded-lg font-medium transition-all ${
+                    selectedTime === slot
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-900 border border-gray-700 text-gray-300 hover:border-blue-500'
+                  }`}
+                >
+                  {slot}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Confirm Button */}
+          <button
+            onClick={handleSchedule}
+            disabled={!selectedDate || !selectedTime || !serviceCenter}
+            className="w-full bg-gradient-to-r from-blue-600 to-cyan-600 text-white py-4 rounded-lg font-semibold hover:from-blue-700 hover:to-cyan-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+          >
+            <CheckCircle className="w-5 h-5" />
+            <span>Confirm Booking</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Service History */}
+      <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
+        <h3 className="text-lg font-bold text-white mb-4">Recent Service History</h3>
+        <div className="space-y-3">
+          {[
+            { date: '2024-11-15', type: 'Scheduled Maintenance', status: 'Completed' },
+            { date: '2024-09-20', type: 'Brake Service', status: 'Completed' },
+            { date: '2024-07-10', type: 'Oil Change', status: 'Completed' },
+          ].map((service, idx) => (
+            <div key={idx} className="flex items-center justify-between py-3 border-b border-gray-700 last:border-0">
+              <div>
+                <p className="font-medium text-white">{service.type}</p>
+                <p className="text-sm text-gray-400">{service.date}</p>
+              </div>
+              <span className="text-xs px-3 py-1 rounded-full bg-green-500/20 text-green-400">
+                {service.status}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Voice Assistant Interface
+const VoiceAssistant = () => {
+  const [messages, setMessages] = useState([
+    { role: 'assistant', content: 'Hello! I noticed your vehicle needs brake pad replacement soon. Would you like me to help schedule a service?' }
+  ]);
+  const [input, setInput] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+
+  const handleSendMessage = async () => {
+    if (!input.trim()) return;
+
+    const userMessage = { role: 'user', content: input };
+    setMessages([...messages, userMessage]);
+    setInput('');
+    setIsProcessing(true);
+
+    try {
+      const response = await api.sendMessage(input, 'HERO-2024-001');
+      const assistantMessage = {
+        role: 'assistant',
+        content: response.message || 'I can help you schedule that service. When would be convenient for you?'
+      };
+      setMessages(prev => [...prev, assistantMessage]);
+    } catch (error) {
+      const errorMessage = {
+        role: 'assistant',
+        content: 'I apologize for the technical issue. Please try again or contact customer support.'
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col h-full">
+      <div className="flex-1 overflow-y-auto p-6 space-y-4">
+        {messages.map((msg, idx) => (
+          <div
+            key={idx}
+            className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+          >
+            <div
+              className={`max-w-[70%] rounded-2xl px-4 py-3 ${
+                msg.role === 'user'
+                  ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white'
+                  : 'bg-gray-800 text-gray-100 border border-gray-700'
+              }`}
+            >
+              <p className="text-sm">{msg.content}</p>
+            </div>
+          </div>
+        ))}
+        {isProcessing && (
+          <div className="flex justify-start">
+            <div className="bg-gray-800 border border-gray-700 rounded-2xl px-4 py-3">
+              <div className="flex items-center space-x-2">
+                <div className="flex space-x-1">
+                  <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"></div>
+                  <div className="w-2 h-2 bg-cyan-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                  <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }}></div>
+                </div>
+                <span className="text-sm text-gray-400">Processing...</span>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+      
+      <div className="p-6 border-t border-gray-800">
+        <div className="flex items-center space-x-2 mb-4">
+          <button
+            onClick={() => setIsListening(!isListening)}
+            className={`p-4 rounded-full transition-all ${
+              isListening 
+                ? 'bg-red-500 animate-pulse' 
+                : 'bg-blue-600 hover:bg-blue-700'
+            }`}
+          >
+            <Phone className="w-6 h-6 text-white" />
+          </button>
+          <span className="text-sm text-gray-400">
+            {isListening ? 'Listening...' : 'Click to speak'}
+          </span>
+        </div>
+        
+        <div className="flex items-center space-x-2">
+          <input
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+            placeholder="Type or speak your query..."
+            className="flex-1 bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 transition-colors"
+          />
+          <button
+            onClick={handleSendMessage}
+            disabled={isProcessing}
+            className="bg-gradient-to-r from-blue-600 to-cyan-600 text-white px-6 py-3 rounded-xl font-medium hover:from-blue-700 hover:to-cyan-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Send
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Manufacturing Insights
+const ManufacturingInsights = () => {
+  const rcaData = [
+    { component: 'Brake Pads', failures: 156, rootCause: 'Material degradation in high-temp environments', action: 'Update compound formula' },
+    { component: 'Battery', failures: 89, rootCause: 'Inadequate thermal management', action: 'Redesign cooling system' },
+    { component: 'Clutch Cable', failures: 67, rootCause: 'Premature wear due to friction', action: 'Improve cable coating' },
+  ];
+
+  return (
+    <div className="p-6 space-y-6 overflow-y-auto h-full">
+      <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
+        <h3 className="text-xl font-bold text-white mb-2 flex items-center space-x-2">
+          <Factory className="w-6 h-6 text-cyan-500" />
+          <span>Manufacturing Feedback Loop</span>
+        </h3>
+        <p className="text-sm text-gray-400 mb-6">RCA & CAPA insights for quality improvement</p>
+
+        <div className="space-y-4">
+          {rcaData.map((item, idx) => (
+            <div key={idx} className="bg-gray-900 border border-gray-700 rounded-lg p-5">
+              <div className="flex items-start justify-between mb-3">
+                <div className="flex-1">
+                  <h4 className="font-semibold text-white mb-1">{item.component}</h4>
+                  <p className="text-sm text-gray-400 mb-2">
+                    <span className="font-medium text-red-400">{item.failures} failures</span> reported
+                  </p>
+                </div>
+                <span className="text-xs px-3 py-1 rounded-full bg-orange-500/20 text-orange-400">
+                  High Priority
+                </span>
+              </div>
+              <div className="space-y-2">
+                <div>
+                  <p className="text-xs text-gray-500 mb-1">Root Cause Analysis:</p>
+                  <p className="text-sm text-gray-300">{item.rootCause}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 mb-1">Corrective Action:</p>
+                  <p className="text-sm text-cyan-400">{item.action}</p>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Impact Metrics */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {[
+          { label: 'Breakdown Reduction', value: '42%', icon: TrendingUp, color: 'text-green-400' },
+          { label: 'Service Utilization', value: '68%', icon: Users, color: 'text-blue-400' },
+          { label: 'Customer Satisfaction', value: '4.7/5', icon: ThumbsUp, color: 'text-yellow-400' },
+        ].map((metric, idx) => {
+          const Icon = metric.icon;
+          return (
+            <div key={idx} className="bg-gray-800 border border-gray-700 rounded-xl p-5">
+              <div className="flex items-center space-x-3 mb-2">
+                <Icon className={`w-6 h-6 ${metric.color}`} />
+                <span className="text-sm text-gray-400">{metric.label}</span>
+              </div>
+              <p className={`text-3xl font-bold ${metric.color}`}>{metric.value}</p>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+// Analytics Dashboard
+const AnalyticsDashboard = () => {
+  return (
+    <div className="p-6 space-y-6 overflow-y-auto h-full">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        {[
+          { label: 'Active Vehicles', value: '2,456', icon: Car },
+          { label: 'Alerts Generated', value: '342', icon: Bell },
+          { label: 'Services Scheduled', value: '189', icon: Calendar },
+          { label: 'Avg Response Time', value: '3.2 min', icon: Clock },
+        ].map((stat, idx) => {
+          const Icon = stat.icon;
+          return (
+            <div key={idx} className="bg-gray-800 border border-gray-700 rounded-xl p-5">
+              <div className="flex items-center space-x-2 mb-2">
+                <Icon className="w-5 h-5 text-blue-400" />
+                <p className="text-sm text-gray-400">{stat.label}</p>
+              </div>
+              <p className="text-2xl font-bold text-white">{stat.value}</p>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
+        <h3 className="text-xl font-bold text-white mb-4 flex items-center space-x-2">
+          <BarChart3 className="w-6 h-6 text-blue-500" />
+          <span>System Performance Metrics</span>
+        </h3>
+        <div className="space-y-4">
+          {[
+            { metric: 'Prediction Accuracy', value: 94, color: 'bg-green-500' },
+            { metric: 'Customer Engagement Rate', value: 76, color: 'bg-blue-500' },
+            { metric: 'Service Completion Rate', value: 88, color: 'bg-cyan-500' },
+            { metric: 'Manufacturing Feedback Integration', value: 92, color: 'bg-purple-500' },
+          ].map((item, idx) => (
+            <div key={idx}>
+              <div className="flex justify-between mb-2">
+                <span className="text-sm text-gray-300">{item.metric}</span>
+                <span className="text-sm font-semibold text-white">{item.value}%</span>
+              </div>
+              <div className="w-full bg-gray-700 rounded-full h-2">
+                <div className={`h-2 rounded-full ${item.color}`} style={{ width: `${item.value}%` }}></div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
+        <h3 className="text-lg font-bold text-white mb-4">Agent Activity Log</h3>
+        <div className="space-y-3">
+          {[
+            { agent: 'Data Analysis Agent', action: 'Analyzed telemetry for VEH-001', time: '2 min ago', status: 'success' },
+            { agent: 'Diagnosis Agent', action: 'Identified brake wear issue', time: '5 min ago', status: 'success' },
+            { agent: 'Engagement Agent', action: 'Initiated voice call to customer', time: '8 min ago', status: 'processing' },
+            { agent: 'Scheduling Agent', action: 'Booked service slot at MG Road', time: '12 min ago', status: 'success' },
+            { agent: 'Feedback Agent', action: 'Collected post-service feedback', time: '1 hour ago', status: 'success' },
+          ].map((log, idx) => (
+            <div key={idx} className="flex items-start justify-between py-3 border-b border-gray-700 last:border-0">
+              <div className="flex items-start space-x-3">
+                <div className={`w-2 h-2 rounded-full mt-2 ${
+                  log.status === 'success' ? 'bg-green-500' : 'bg-yellow-500 animate-pulse'
+                }`}></div>
+                <div>
+                  <p className="font-medium text-white text-sm">{log.agent}</p>
+                  <p className="text-xs text-gray-400">{log.action}</p>
+                </div>
+              </div>
+              <span className="text-xs text-gray-500">{log.time}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Main App Component
+const PredictiveMaintenanceSystem = () => {
+  const [activeTab, setActiveTab] = useState('dashboard');
+
+  return (
+    <div className="flex h-screen bg-gray-900 text-white">
+      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
+      
+      <div className="flex-1 flex flex-col">
+        <header className="bg-gray-900 border-b border-gray-800 px-6 py-4 flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold text-white">
+              {activeTab === 'dashboard' && 'Vehicle Health Dashboard'}
+              {activeTab === 'alerts' && 'Predictive Maintenance Alerts'}
+              {activeTab === 'scheduling' && 'Proactive Service Scheduling'}
+              {activeTab === 'voice' && 'AI Voice Assistant'}
+              {activeTab === 'manufacturing' && 'Manufacturing Insights & RCA'}
+              {activeTab === 'analytics' && 'Analytics & Reports'}
+            </h2>
+            <p className="text-sm text-gray-400 mt-1">
+              {activeTab === 'dashboard' && 'Real-time vehicle telemetry and health monitoring'}
+              {activeTab === 'alerts' && 'AI-powered failure predictions with confidence scores'}
+              {activeTab === 'scheduling' && 'Smart scheduling based on capacity and proximity'}
+              {activeTab === 'voice' && 'Natural language service booking assistant'}
+              {activeTab === 'manufacturing' && 'CAPA feedback loop for quality improvement'}
+              {activeTab === 'analytics' && 'System performance and business metrics'}
+            </p>
+          </div>
+          <div className="flex items-center space-x-4">
+            <div className="text-right">
+              <p className="text-sm text-gray-400">EY Techathon 6.0</p>
+              <p className="text-xs text-gray-500">Hero MotoCorp + M&M</p>
+            </div>
+          </div>
+        </header>
+
+        <main className="flex-1 overflow-hidden">
+          {activeTab === 'dashboard' && <VehicleDashboard />}
+          {activeTab === 'alerts' && <PredictiveAlerts />}
+          {activeTab === 'scheduling' && <ServiceScheduling />}
+          {activeTab === 'voice' && <VoiceAssistant />}
+          {activeTab === 'manufacturing' && <ManufacturingInsights />}
+          {activeTab === 'analytics' && <AnalyticsDashboard />}
         </main>
       </div>
     </div>
   );
 };
 
-export default App;
+export default PredictiveMaintenanceSystem
